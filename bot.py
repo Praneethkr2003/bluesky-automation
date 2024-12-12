@@ -523,6 +523,66 @@ class BlueskyBot:
             self.logger.error(f"Error creating topic thread: {e}")
             return []
 
+    async def monitor_follower_mentions(self):
+        """Monitor new posts from followers for mentions of the bot"""
+        self.logger.info("Starting follower mentions monitor")
+
+        while True:
+            try:
+                # Fetch the latest posts from followers
+                posts = self.client.get_followers_posts()  # Assuming this method exists
+
+                for post in posts:
+                    if self.BLUESKY_USERNAME in post.text:  # Check if the bot is mentioned
+                        self.logger.info(f"Mentioned in post: {post.text}")
+                        response_text = self.create_response(post.text)  # Create a response based on the post
+                        await self.reply_to_post(post, response_text)  # Reply to the post
+
+                await asyncio.sleep(self.check_interval)  # Wait before checking again
+
+            except Exception as e:
+                self.logger.error(f"Error monitoring follower mentions: {e}")
+                await asyncio.sleep(10)
+
+    async def reply_to_post(self, post, response_text: str):
+        """Reply to a specific post"""
+        try:
+            self.client.send_post(
+                text=response_text,
+                reply_to={"uri": post.uri, "cid": post.cid}  # Assuming post has uri and cid attributes
+            )
+            self.logger.info(f"Replied to post: {post.text[:50]}... with: {response_text}")
+        except Exception as e:
+            self.logger.error(f"Error replying to post: {e}")
+
+    def create_response(self, post_text: str) -> str:
+        """Create a response based on the content of the post"""
+        # Implement logic to generate a response based on the post content
+        return f"Thanks for the mention! You said: {post_text}"
+
+    async def monitor_post_replies(self):
+        """Monitor replies to the bot's posts"""
+        self.logger.info("Starting post replies monitor")
+
+        while True:
+            try:
+                # Fetch the latest posts made by the bot
+                posts = self.client.get_my_posts()  # Assuming this method exists
+
+                for post in posts:
+                    replies = self.client.get_replies_to_post(post.id)  # Assuming this method exists
+                    for reply in replies:
+                        if reply.text and reply.user.username != self.BLUESKY_USERNAME:  # Check if it's not the bot's own reply
+                            self.logger.info(f"Reply to post {post.id}: {reply.text}")
+                            response_text = self.create_response(reply.text)  # Create a response based on the reply
+                            await self.reply_to_post(reply, response_text)  # Reply to the reply
+
+                await asyncio.sleep(self.check_interval)  # Wait before checking again
+
+            except Exception as e:
+                self.logger.error(f"Error monitoring post replies: {e}")
+                await asyncio.sleep(10)
+
 
 async def main():
     # Load environment variables
